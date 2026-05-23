@@ -1,45 +1,33 @@
 #include "daisy_seed.h"
+#include "daisysp.h"
 
 using namespace daisy;
+using namespace daisysp;
 
-DaisySeed hw;
+DaisySeed hardware;
+Oscillator osc;
 
-// Audio callback - this is where DSP happens
-void AudioCallback(AudioHandle::InputBuffer  in,
-                   AudioHandle::OutputBuffer out,
-                   size_t                    size)
+void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
+                   AudioHandle::InterleavingOutputBuffer out,
+                   size_t                                size)
 {
-    for(size_t i = 0; i < size; i++)
+    for(size_t i = 0; i < size; i += 2)
     {
-        // Passthrough L and R for now
-        out[0][i] = in[0][i];
-        out[1][i] = in[1][i];
+        float sig  = osc.Process() * 0.5f;
+        out[i]     = sig;
+        out[i + 1] = sig;
     }
 }
 
 int main(void)
 {
-    hw.Init();
-    hw.SetAudioBlockSize(4); // samples per block
-
-    // UART for ESP32-S3 communication
-    // Daisy Seed pins: TX=GPIO14, RX=GPIO15
-    UartHandler uart;
-    UartHandler::Config uart_config;
-    uart_config.periph        = UartHandler::Config::Peripheral::USART_1;
-    uart_config.baudrate      = 115200;
-    uart_config.stopbits      = UartHandler::Config::StopBits::BITS_1;
-    uart_config.parity        = UartHandler::Config::Parity::NONE;
-    uart_config.mode          = UartHandler::Config::Mode::TX_RX;
-    uart_config.pin_config.tx = seed::D13;
-    uart_config.pin_config.rx = seed::D14;
-    uart.Init(uart_config);
-
-    hw.StartAudio(AudioCallback);
-
-    while(1)
-    {
-        // Main loop - handle UART comms with ESP32-S3
-        // e.g. receive parameter updates, send status back
-    }
+    hardware.Configure();
+    hardware.Init();
+    hardware.SetAudioBlockSize(4);
+    osc.Init(hardware.AudioSampleRate());
+    osc.SetFreq(440.f);
+    osc.SetWaveform(Oscillator::WAVE_SIN);
+    osc.SetAmp(1.f);
+    hardware.StartAudio(AudioCallback);
+    for(;;) {}
 }

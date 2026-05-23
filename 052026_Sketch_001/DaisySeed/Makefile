@@ -3,6 +3,11 @@ TARGET = sketch_001
 CPP_SOURCES = src/main.cpp
 
 LIBDAISY_DIR = C:/Daisy/libDaisy
+DAISYSP_DIR  = C:/Daisy/DaisySP
+
+CPPFLAGS += -I$(DAISYSP_DIR)/Source
 
 SYSTEM_FILES_DIR = $(LIBDAISY_DIR)/core
 include $(SYSTEM_FILES_DIR)/Makefile
+
+LDSCRIPT = $(SYSTEM_FILES_DIR)/STM32H750IB_qspi.lds
