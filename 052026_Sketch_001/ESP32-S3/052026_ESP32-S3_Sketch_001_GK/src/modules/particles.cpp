@@ -24,6 +24,8 @@ void ParticleModule::init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) {
 
   _mutex = xSemaphoreCreateMutex();
 
+  Serial2.begin(31250, SERIAL_8N1, -1, 17); // RX=-1, TX=GPIO17
+
   xTaskCreatePinnedToCore(
     physicsTaskFn, "particles_physics",
     8192, this,
@@ -133,10 +135,14 @@ void ParticleModule::physicsTaskFn(void* param) {
       b.x += b.vx;
       b.y += b.vy;
 
-      if (b.x + RADIUS >= SCREEN_W) { b.x = SCREEN_W-RADIUS; b.vx = -fabsf(b.vx); }
-      if (b.x - RADIUS <= 0)        { b.x = RADIUS;           b.vx =  fabsf(b.vx); }
-      if (b.y + RADIUS >= SCREEN_H) { b.y = SCREEN_H-RADIUS;  b.vy = -fabsf(b.vy); }
-      if (b.y - RADIUS <= 0)        { b.y = RADIUS;            b.vy =  fabsf(b.vy); }
+      if (b.x + RADIUS >= SCREEN_W) { b.x = SCREEN_W-RADIUS; b.vx = -fabsf(b.vx); 
+          Serial2.write((uint8_t)min((int)sqrtf(b.vx*b.vx + b.vy*b.vy) * 20, 255)); }
+      if (b.x - RADIUS <= 0)        { b.x = RADIUS;           b.vx =  fabsf(b.vx); 
+          Serial2.write((uint8_t)min((int)sqrtf(b.vx*b.vx + b.vy*b.vy) * 20, 255)); }
+      if (b.y + RADIUS >= SCREEN_H) { b.y = SCREEN_H-RADIUS;  b.vy = -fabsf(b.vy); 
+          Serial2.write((uint8_t)min((int)sqrtf(b.vx*b.vx + b.vy*b.vy) * 20, 255)); }
+      if (b.y - RADIUS <= 0)        { b.y = RADIUS;            b.vy =  fabsf(b.vy); 
+          Serial2.write((uint8_t)min((int)sqrtf(b.vx*b.vx + b.vy*b.vy) * 20, 255)); }
 
       for (int j = i+1; j < MAX_BODIES; j++) {
         if (!self->_bodies[j].alive) continue;
@@ -162,10 +168,11 @@ void ParticleModule::physicsTaskFn(void* param) {
           float dot  = dvx*nx + dvy*ny;
 
           if (dot > 0) {
-            b.vx                -= dot*nx;
-            b.vy                -= dot*ny;
-            self->_bodies[j].vx += dot*nx;
-            self->_bodies[j].vy += dot*ny;
+              b.vx                -= dot*nx;
+              b.vy                -= dot*ny;
+              self->_bodies[j].vx += dot*nx;
+              self->_bodies[j].vy += dot*ny;
+              Serial2.write((uint8_t)min((int)sqrtf(dot*dot) * 20, 255));
           }
         }
       }
