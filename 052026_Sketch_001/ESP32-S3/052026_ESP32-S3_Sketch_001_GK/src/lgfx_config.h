@@ -33,7 +33,7 @@ public:
       cfg.offset_y        = 0;
       cfg.offset_rotation = 0;
       cfg.readable        = true;
-      cfg.invert          = true;
+      cfg.invert          = false;
       cfg.rgb_order       = false;
       cfg.dlen_16bit      = false;
       cfg.bus_shared      = false;

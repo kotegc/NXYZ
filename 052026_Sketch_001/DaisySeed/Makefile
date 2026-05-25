@@ -1,13 +1,13 @@
-TARGET = sketch_001
+# Project Name
+TARGET = DaisySeed
 
-CPP_SOURCES = src/main.cpp
+# Sources
+CPP_SOURCES = DaisySeed.cpp
 
-LIBDAISY_DIR = C:/Daisy/libDaisy
-DAISYSP_DIR  = C:/Daisy/DaisySP
+# Library Locations
+LIBDAISY_DIR = ../../../../../../Desktop/DaisyExamples/libDaisy/
+DAISYSP_DIR = ../../../../../../Desktop/DaisyExamples/DaisySP/
 
-CPPFLAGS += -I$(DAISYSP_DIR)/Source
-
+# Core location, and generic Makefile.
 SYSTEM_FILES_DIR = $(LIBDAISY_DIR)/core
 include $(SYSTEM_FILES_DIR)/Makefile
-
-LDSCRIPT = $(SYSTEM_FILES_DIR)/STM32H750IB_qspi.lds

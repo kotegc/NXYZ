@@ -6,6 +6,7 @@
 #include "menu.h"
 #include "modules/particles.h"
 #include "modules/pendulum.h"
+#include "modules/chladni.h"
 #include "lgfx_config.h"
 
 // ── Hardware ──────────────────────────────────────────────
@@ -21,13 +22,14 @@ void IRAM_ATTR readEncoderISR() {
 // ── Modules ───────────────────────────────────────────────
 ParticleModule        particleModule;
 PendulumModule        pendulumModule;
+ChladniModule         chladniModule;
 
 PhysicsModule* modules[] = {
   &particleModule,
   // &polygonModule,   ← add later
   &pendulumModule,
   // &greyscottModule,
-  // &chladniModule,
+  &chladniModule,
 };
 const int MODULE_COUNT = sizeof(modules) / sizeof(modules[0]);
 
