@@ -1,5 +1,17 @@
 #include "particles.h"
 
+// ── Packet sender ─────────────────────────────────────────
+static void sendCollisionPacket(uint8_t bodyIndex, float speed, float normX, float normY, uint8_t collisionType) {
+    uint8_t packet[6];
+    packet[0] = 0xFF;
+    packet[1] = bodyIndex;
+    packet[2] = (uint8_t)min((int)(speed * 20.f), 254);
+    packet[3] = (uint8_t)min((int)(normX * 255.f), 254);
+    packet[4] = (uint8_t)min((int)(normY * 255.f), 254);
+    packet[5] = collisionType;
+    Serial2.write(packet, 6);
+}
+
 // ── Init / Stop ───────────────────────────────────────────
 void ParticleModule::init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) {
   _gfx     = gfx;
@@ -99,8 +111,8 @@ void ParticleModule::killAllBodies() {
 // ── Overlays ─────────────────────────────────────────────
 void ParticleModule::drawCounter(int count) {
   _gfx->startWrite();
-_gfx->fillRect(COUNTER_X1, COUNTER_Y1, 
-               COUNTER_X2-COUNTER_X1, COUNTER_Y2-COUNTER_Y1, TFT_WHITE);
+  _gfx->fillRect(COUNTER_X1, COUNTER_Y1, 
+                 COUNTER_X2-COUNTER_X1, COUNTER_Y2-COUNTER_Y1, TFT_WHITE);
   _gfx->setTextColor(TFT_BLACK);
   _gfx->setTextSize(2);
   _gfx->setCursor(2, 2);
@@ -135,14 +147,14 @@ void ParticleModule::physicsTaskFn(void* param) {
       b.x += b.vx;
       b.y += b.vy;
 
-      if (b.x + RADIUS >= SCREEN_W) { b.x = SCREEN_W-RADIUS; b.vx = -fabsf(b.vx); 
-          Serial2.write((uint8_t)min((int)sqrtf(b.vx*b.vx + b.vy*b.vy) * 20, 255)); }
-      if (b.x - RADIUS <= 0)        { b.x = RADIUS;           b.vx =  fabsf(b.vx); 
-          Serial2.write((uint8_t)min((int)sqrtf(b.vx*b.vx + b.vy*b.vy) * 20, 255)); }
-      if (b.y + RADIUS >= SCREEN_H) { b.y = SCREEN_H-RADIUS;  b.vy = -fabsf(b.vy); 
-          Serial2.write((uint8_t)min((int)sqrtf(b.vx*b.vx + b.vy*b.vy) * 20, 255)); }
-      if (b.y - RADIUS <= 0)        { b.y = RADIUS;            b.vy =  fabsf(b.vy); 
-          Serial2.write((uint8_t)min((int)sqrtf(b.vx*b.vx + b.vy*b.vy) * 20, 255)); }
+      if (b.x + RADIUS >= SCREEN_W) { b.x = SCREEN_W-RADIUS; b.vx = -fabsf(b.vx);
+          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0); }
+      if (b.x - RADIUS <= 0)        { b.x = RADIUS;           b.vx =  fabsf(b.vx);
+          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0); }
+      if (b.y + RADIUS >= SCREEN_H) { b.y = SCREEN_H-RADIUS;  b.vy = -fabsf(b.vy);
+          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0); }
+      if (b.y - RADIUS <= 0)        { b.y = RADIUS;            b.vy =  fabsf(b.vy);
+          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0); }
 
       for (int j = i+1; j < MAX_BODIES; j++) {
         if (!self->_bodies[j].alive) continue;
@@ -172,7 +184,7 @@ void ParticleModule::physicsTaskFn(void* param) {
               b.vy                -= dot*ny;
               self->_bodies[j].vx += dot*nx;
               self->_bodies[j].vy += dot*ny;
-              Serial2.write((uint8_t)min((int)sqrtf(dot*dot) * 20, 255));
+              sendCollisionPacket(i, fabsf(dot), b.x / SCREEN_W, b.y / SCREEN_H, 1);
           }
         }
       }

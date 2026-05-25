@@ -9,9 +9,31 @@ Oscillator osc;
 Encoder    enc;
 AdEnv      env;
 
-float freq    = 440.f;
-bool  trigger = false;
+float freq       = 440.f;
+bool  trigger    = false;
 float triggerAmp = 1.0f;
+
+// Packet parser state
+uint8_t packetBuf[6];
+uint8_t packetIdx = 0;
+
+void ProcessPacket(uint8_t* p)
+{
+    uint8_t bodyIndex     = p[1];
+    float   speed         = p[2] / 254.0f;
+    float   normX         = p[3] / 254.0f;
+    float   normY         = p[4] / 254.0f;
+    uint8_t collisionType = p[5];
+
+    // Map normX to frequency (left=low, right=high)
+    freq = 100.f + normX * 900.f; // 100Hz to 1000Hz
+    osc.SetFreq(freq);
+
+    // Speed controls amplitude
+    triggerAmp = speed * 0.5f; // cap at 50% for earbud safety
+
+    trigger = true;
+}
 
 void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
                    AudioHandle::InterleavingOutputBuffer out,
@@ -42,7 +64,6 @@ int main(void)
 
     float samplerate = hardware.AudioSampleRate();
 
-    // UART receive from ESP32
     UartHandler uart;
     UartHandler::Config uart_conf;
     uart_conf.periph        = UartHandler::Config::Peripheral::USART_1;
@@ -50,8 +71,8 @@ int main(void)
     uart_conf.stopbits      = UartHandler::Config::StopBits::BITS_1;
     uart_conf.parity        = UartHandler::Config::Parity::NONE;
     uart_conf.mode          = UartHandler::Config::Mode::RX;
-    uart_conf.pin_config.rx = hardware.GetPin(14);
-    uart_conf.pin_config.tx = hardware.GetPin(13);
+    uart_conf.pin_config.rx = seed::D14;
+    uart_conf.pin_config.tx = seed::D13;
     uart.Init(uart_conf);
 
     enc.Init(seed::D19, seed::D20, seed::D21);
@@ -74,6 +95,7 @@ int main(void)
     {
         enc.Debounce();
 
+        // Encoder still controls frequency manually
         int inc = enc.Increment();
         if(inc != 0)
         {
@@ -84,16 +106,29 @@ int main(void)
 
         if(enc.RisingEdge())
         {
-            triggerAmp = 1.0f;
+            triggerAmp = 0.5f;
             trigger = true;
         }
 
-        // Check for incoming UART byte from ESP32
+        // Parse incoming UART packets
         uint8_t byte;
-        if(uart.PollReceive(&byte, 1, 0) == 0)
+        while(uart.PollReceive(&byte, 1, 0) == 0)
         {
-            triggerAmp = byte / 255.0f * 0.5f;
-            trigger = true;
+            if(byte == 0xFF)
+            {
+                // Header found — start new packet
+                packetBuf[0] = 0xFF;
+                packetIdx    = 1;
+            }
+            else if(packetIdx > 0 && packetIdx < 6)
+            {
+                packetBuf[packetIdx++] = byte;
+                if(packetIdx == 6)
+                {
+                    ProcessPacket(packetBuf);
+                    packetIdx = 0;
+                }
+            }
         }
     }
 }
