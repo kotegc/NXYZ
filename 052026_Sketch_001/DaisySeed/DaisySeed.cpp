@@ -26,7 +26,7 @@ float   triggerAmp  = 0.5f;
 float   manualFreq = 440.f;
 
 // Packet parser
-uint8_t packetBuf[6];
+uint8_t packetBuf[7]; // packets are 7 bytes (see ProcessPacket) — was [6], off-by-one overflow
 uint8_t packetIdx = 0;
 
 // ── Voice allocator ───────────────────────────────────────
@@ -64,7 +64,7 @@ void ProcessPacket(uint8_t* p)
     uint8_t numBodies     = p[6];
 
     // Currently mapped
-    triggerFreq = 100.f + normX * 900.f;
+    triggerFreq = 100.f + normX * 900.f; // maps normX to 100-1000Hz; range chosen by ear, not derived
     triggerAmp  = speed * 0.5f;
 
     // Parsed but unused for now — available for future mapping
@@ -134,7 +134,7 @@ int main(void)
     UartHandler uart;
     UartHandler::Config uart_conf;
     uart_conf.periph        = UartHandler::Config::Peripheral::USART_1;
-    uart_conf.baudrate      = 31250;
+    uart_conf.baudrate      = 31250; // MIDI standard baud rate — matches Serial2 on the ESP32-S3 side
     uart_conf.stopbits      = UartHandler::Config::StopBits::BITS_1;
     uart_conf.parity        = UartHandler::Config::Parity::NONE;
     uart_conf.mode          = UartHandler::Config::Mode::RX;

@@ -218,7 +218,7 @@ void PendulumModule::loop() {
       int oldX1 = _x1, oldY1 = _y1;
       int oldX2 = _x2, oldY2 = _y2;
 
-      _a1 -= delta * 0.4188;
+      _a1 -= delta * 0.4188; // empirically-tuned encoder-tick-to-radians sensitivity, not derived
       _a2  = _a1;
       computePositions();
 

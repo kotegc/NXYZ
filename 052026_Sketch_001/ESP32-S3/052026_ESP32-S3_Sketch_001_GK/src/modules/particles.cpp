@@ -1,6 +1,10 @@
 #include "particles.h"
 
 // ── Packet sender ─────────────────────────────────────────
+// Every payload byte is clamped to 254 (never 255/0xFF) so no byte in a
+// packet body can be mistaken for the 0xFF sync byte that marks the start
+// of a new packet — that's what lets the DaisySeed-side parser resync
+// cleanly if it ever misses a byte.
 static void sendCollisionPacket(uint8_t bodyIndex, float speed, float normX, float normY, uint8_t collisionType, uint8_t numBodies) {
     uint8_t packet[7];
     packet[0] = 0xFF;
@@ -37,8 +41,13 @@ void ParticleModule::init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) {
 
   _mutex = xSemaphoreCreateMutex();
 
-  Serial2.begin(31250, SERIAL_8N1, -1, 17); // RX=-1, TX=GPIO17
+  Serial2.begin(31250, SERIAL_8N1, -1, 17); // RX=-1, TX=GPIO17; 31250 = MIDI standard baud rate
 
+  // Collision checks are O(n^2) in body count (up to ~100 bodies = up to
+  // ~10,000 checks/frame), heavy enough to want a dedicated core so the
+  // render/menu loop never stalls waiting on physics. Hence the task +
+  // mutex here, unlike pendulum/chladni, whose single-body physics is
+  // cheap enough to run inline in loop() with no thread-safety needed.
   xTaskCreatePinnedToCore(
     physicsTaskFn, "particles_physics",
     8192, this,

@@ -24,11 +24,10 @@ ParticleModule        particleModule;
 PendulumModule        pendulumModule;
 ChladniModule         chladniModule;
 
+// Additional modules planned — see README Roadmap
 PhysicsModule* modules[] = {
   &particleModule,
-  // &polygonModule,   ← add later
   &pendulumModule,
-  // &greyscottModule,
   &chladniModule,
 };
 const int MODULE_COUNT = sizeof(modules) / sizeof(modules[0]);
