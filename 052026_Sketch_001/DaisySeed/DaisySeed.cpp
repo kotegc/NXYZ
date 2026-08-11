@@ -5,18 +5,55 @@ using namespace daisy;
 using namespace daisysp;
 
 DaisySeed hardware;
-Oscillator osc;
 Encoder    enc;
-AdEnv      env;
 
-float freq       = 440.f;
-bool  trigger    = false;
-float triggerAmp = 1.0f;
+// ── Voice pool ────────────────────────────────────────────
+const int NUM_VOICES = 8;
 
-// Packet parser state
+struct Voice {
+    Oscillator osc;
+    AdEnv      env;
+    bool       active = false;
+};
+
+Voice voices[NUM_VOICES];
+
+// ── Shared state ──────────────────────────────────────────
+bool    trigger    = false;
+float   triggerFreq = 440.f;
+float   triggerAmp  = 0.5f;
+
+float   manualFreq = 440.f;
+
+// Packet parser
 uint8_t packetBuf[6];
 uint8_t packetIdx = 0;
 
+// ── Voice allocator ───────────────────────────────────────
+int FindVoice()
+{
+    // First look for an inactive voice
+    for(int i = 0; i < NUM_VOICES; i++)
+    {
+        if(!voices[i].active) return i;
+    }
+
+    // All busy — steal the quietest
+    int   quietest  = 0;
+    float minAmp    = 999.f;
+    for(int i = 0; i < NUM_VOICES; i++)
+    {
+        float a = voices[i].env.Process();
+        if(a < minAmp)
+        {
+            minAmp   = a;
+            quietest = i;
+        }
+    }
+    return quietest;
+}
+
+// ── Packet processor ──────────────────────────────────────
 void ProcessPacket(uint8_t* p)
 {
     uint8_t bodyIndex     = p[1];
@@ -24,38 +61,68 @@ void ProcessPacket(uint8_t* p)
     float   normX         = p[3] / 254.0f;
     float   normY         = p[4] / 254.0f;
     uint8_t collisionType = p[5];
+    uint8_t numBodies     = p[6];
 
-    // Map normX to frequency (left=low, right=high)
-    freq = 100.f + normX * 900.f; // 100Hz to 1000Hz
-    osc.SetFreq(freq);
+    // Currently mapped
+    triggerFreq = 100.f + normX * 900.f;
+    triggerAmp  = speed * 0.5f;
 
-    // Speed controls amplitude
-    triggerAmp = speed * 0.5f; // cap at 50% for earbud safety
+    // Parsed but unused for now — available for future mapping
+    (void)bodyIndex;
+    (void)normY;
+    (void)collisionType;
+    (void)numBodies;
 
     trigger = true;
 }
 
+// ── Audio callback ────────────────────────────────────────
 void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
                    AudioHandle::InterleavingOutputBuffer out,
                    size_t                                size)
 {
     if(trigger)
     {
-        env.SetMax(triggerAmp);
-        env.Trigger();
+        int v = FindVoice();
+        voices[v].osc.SetFreq(triggerFreq);
+        voices[v].env.SetMax(triggerAmp);
+        voices[v].env.Trigger();
+        voices[v].active = true;
         trigger = false;
     }
 
     for(size_t i = 0; i < size; i += 2)
     {
-        float env_out = env.Process();
-        osc.SetAmp(env_out);
-        float sig = osc.Process();
-        out[i]     = sig;
-        out[i + 1] = sig;
+        float mix = 0.f;
+        int   activeCount = 0;
+
+        for(int v = 0; v < NUM_VOICES; v++)
+        {
+            if(!voices[v].active) continue;
+
+            float env_out = voices[v].env.Process();
+
+            if(env_out <= 0.0001f)
+            {
+                voices[v].active = false;
+                continue;
+            }
+
+            voices[v].osc.SetAmp(env_out);
+            mix += voices[v].osc.Process();
+            activeCount++;
+        }
+
+        // Scale down to prevent clipping
+        if(activeCount > 0)
+            mix /= activeCount;
+
+        out[i]     = mix;
+        out[i + 1] = mix;
     }
 }
 
+// ── Main ──────────────────────────────────────────────────
 int main(void)
 {
     hardware.Configure();
@@ -77,17 +144,23 @@ int main(void)
 
     enc.Init(seed::D19, seed::D20, seed::D21);
 
-    osc.Init(samplerate);
-    osc.SetWaveform(osc.WAVE_SIN);
-    osc.SetAmp(1.f);
-    osc.SetFreq(freq);
+    // Init all voices
+    for(int i = 0; i < NUM_VOICES; i++)
+    {
+        voices[i].osc.Init(samplerate);
+        voices[i].osc.SetWaveform(Oscillator::WAVE_SIN);
+        voices[i].osc.SetAmp(1.f);
+        voices[i].osc.SetFreq(440.f);
 
-    env.Init(samplerate);
-    env.SetTime(ADENV_SEG_ATTACK, .01);
-    env.SetTime(ADENV_SEG_DECAY, .4);
-    env.SetMin(0.0);
-    env.SetMax(1.f);
-    env.SetCurve(0);
+        voices[i].env.Init(samplerate);
+        voices[i].env.SetTime(ADENV_SEG_ATTACK, .01f);
+        voices[i].env.SetTime(ADENV_SEG_DECAY, .4f);
+        voices[i].env.SetMin(0.0f);
+        voices[i].env.SetMax(1.f);
+        voices[i].env.SetCurve(0);
+
+        voices[i].active = false;
+    }
 
     hardware.StartAudio(AudioCallback);
 
@@ -95,35 +168,35 @@ int main(void)
     {
         enc.Debounce();
 
-        // Encoder still controls frequency manually
+        // Encoder controls manual frequency
         int inc = enc.Increment();
         if(inc != 0)
         {
-            freq += inc * 10.f;
-            freq = fclamp(freq, 20.f, 20000.f);
-            osc.SetFreq(freq);
+            manualFreq += inc * 10.f;
+            manualFreq = fclamp(manualFreq, 20.f, 20000.f);
         }
 
+        // Encoder click triggers a manual voice at current frequency
         if(enc.RisingEdge())
         {
-            triggerAmp = 0.5f;
-            trigger = true;
+            triggerFreq = manualFreq;
+            triggerAmp  = 0.5f;
+            trigger     = true;
         }
 
-        // Parse incoming UART packets
+        // Parse UART packets
         uint8_t byte;
         while(uart.PollReceive(&byte, 1, 0) == 0)
         {
             if(byte == 0xFF)
             {
-                // Header found — start new packet
                 packetBuf[0] = 0xFF;
                 packetIdx    = 1;
             }
-            else if(packetIdx > 0 && packetIdx < 6)
+            else if(packetIdx > 0 && packetIdx < 7)
             {
                 packetBuf[packetIdx++] = byte;
-                if(packetIdx == 6)
+                if(packetIdx == 7)
                 {
                     ProcessPacket(packetBuf);
                     packetIdx = 0;

@@ -1,15 +1,16 @@
 #include "particles.h"
 
 // ── Packet sender ─────────────────────────────────────────
-static void sendCollisionPacket(uint8_t bodyIndex, float speed, float normX, float normY, uint8_t collisionType) {
-    uint8_t packet[6];
+static void sendCollisionPacket(uint8_t bodyIndex, float speed, float normX, float normY, uint8_t collisionType, uint8_t numBodies) {
+    uint8_t packet[7];
     packet[0] = 0xFF;
     packet[1] = bodyIndex;
     packet[2] = (uint8_t)min((int)(speed * 20.f), 254);
     packet[3] = (uint8_t)min((int)(normX * 255.f), 254);
     packet[4] = (uint8_t)min((int)(normY * 255.f), 254);
     packet[5] = collisionType;
-    Serial2.write(packet, 6);
+    packet[6] = (uint8_t)min((int)numBodies, 254);
+    Serial2.write(packet, 7);
 }
 
 // ── Init / Stop ───────────────────────────────────────────
@@ -148,14 +149,14 @@ void ParticleModule::physicsTaskFn(void* param) {
       b.y += b.vy;
 
       if (b.x + RADIUS >= SCREEN_W) { b.x = SCREEN_W-RADIUS; b.vx = -fabsf(b.vx);
-          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0); }
+          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0, self->_numBodies); }
       if (b.x - RADIUS <= 0)        { b.x = RADIUS;           b.vx =  fabsf(b.vx);
-          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0); }
+          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0, self->_numBodies); }
       if (b.y + RADIUS >= SCREEN_H) { b.y = SCREEN_H-RADIUS;  b.vy = -fabsf(b.vy);
-          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0); }
+          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0, self->_numBodies); }
       if (b.y - RADIUS <= 0)        { b.y = RADIUS;            b.vy =  fabsf(b.vy);
-          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0); }
-
+          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0, self->_numBodies); }
+          
       for (int j = i+1; j < MAX_BODIES; j++) {
         if (!self->_bodies[j].alive) continue;
 
@@ -184,7 +185,7 @@ void ParticleModule::physicsTaskFn(void* param) {
               b.vy                -= dot*ny;
               self->_bodies[j].vx += dot*nx;
               self->_bodies[j].vy += dot*ny;
-              sendCollisionPacket(i, fabsf(dot), b.x / SCREEN_W, b.y / SCREEN_H, 1);
+              sendCollisionPacket(i, fabsf(dot), b.x / SCREEN_W, b.y / SCREEN_H, 1, self->_numBodies);
           }
         }
       }
