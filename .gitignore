@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.d
+*.o
+
+# Windows junk
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# VS Code
+.vscode/
+
+# Mac
+.DS_Store
