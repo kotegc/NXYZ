@@ -14,12 +14,20 @@ struct Body {
   bool  alive;
 };
 
+namespace particle_events {
+  enum : uint8_t { WALL_BOUNCE = 0, BODY_COLLISION = 1, EVENT_COUNT };
+}
+
 class ParticleModule : public PhysicsModule {
 public:
   void            init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) override;
   void            stop() override;
   void            loop() override;
   const char*     name() override { return "PARTICLES"; }
+
+  uint8_t                              moduleId() const override { return nxyz_protocol::MODULE_PARTICLES; }
+  const nxyz_protocol::EventDescriptor* events() const override;
+  uint8_t                              eventCount() const override { return particle_events::EVENT_COUNT; }
 
 private:
   LGFX*                 _gfx;

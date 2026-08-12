@@ -1,5 +1,29 @@
 #include "chladni.h"
+#include "uart_protocol.h"
+#include "../event_bus.h"
+#include "../ticks.h"
 #include <math.h>
+
+// ── Event manifest ─────────────────────────────────────────
+static constexpr nxyz_protocol::EventDescriptor kChladniEvents[] = {
+  { chladni_events::MODE_AMPLITUDE, nxyz_protocol::EventKind::Output,  "mode_amplitude" },
+  { chladni_events::NODE_CROSSING,  nxyz_protocol::EventKind::Trigger, "node_crossing" },
+};
+
+const nxyz_protocol::EventDescriptor* ChladniModule::events() const { return kChladniEvents; }
+
+// Standalone evaluator of drawPattern()'s formula at the plate center —
+// kept separate from drawPattern()'s per-pixel loop so event emission
+// never touches (and can't risk regressing) render performance.
+float ChladniModule::sampleCenterValue(float t) {
+  float m = 1.0f + t * 6.0f, n = 2.0f + t * 6.0f;
+  float p = m + 1.0f,        q = n - 1.0f;
+  float C = cosf(t * M_PI * 2.0f) * 0.5f + 0.5f;
+  float D = sinf(t * M_PI * 2.0f) * 0.5f + 0.5f;
+  float x = 0.5f, y = 0.5f; // plate center, same normalization as drawPattern
+  return C * cosf(m * M_PI * x) * cosf(n * M_PI * y)
+       + D * cosf(p * M_PI * x) * cosf(q * M_PI * y);
+}
 
 void ChladniModule::init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) {
   _gfx     = gfx;
@@ -10,6 +34,7 @@ void ChladniModule::init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) {
   _needsRedraw      = true;
   _fpsDirty         = false;
   _lastFPSVal       = 0;
+  _prevCenterPositive = sampleCenterValue(0.f) >= 0.0f;
 
   _encoder->setBoundaries(0, MAX_POSITION, false);
   _encoder->setEncoderValue(0);
@@ -102,6 +127,21 @@ void ChladniModule::loop() {
     _position         = val;
     _lastEncoderValue = val;
     _needsRedraw      = true;
+
+    // ── Event emission ──
+    float t = (float)_position / (float)MAX_POSITION;
+    uint32_t tick = ticks::now();
+
+    event_bus::emitOutputThrottled(nxyz_protocol::MODULE_CHLADNI, chladni_events::MODE_AMPLITUDE, t, tick);
+
+    float centerVal = sampleCenterValue(t);
+    bool  centerPositive = centerVal >= 0.0f;
+    if (centerPositive != _prevCenterPositive) {
+      // Chladni has no time-based velocity/intensity concept, unlike
+      // collisions or pendulum swings — send a fixed max intensity.
+      event_bus::emit(nxyz_protocol::MODULE_CHLADNI, chladni_events::NODE_CROSSING, 1.0f, 0.f, tick);
+    }
+    _prevCenterPositive = centerPositive;
   }
 
   // ── Redraw ──

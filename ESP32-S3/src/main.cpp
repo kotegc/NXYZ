@@ -8,6 +8,9 @@
 #include "modules/pendulum.h"
 #include "modules/chladni.h"
 #include "lgfx_config.h"
+#include "uart_protocol.h"
+#include "event_bus.h"
+#include "ticks.h"
 
 // ── Hardware ──────────────────────────────────────────────
 LGFX                  gfx;
@@ -58,6 +61,12 @@ void setup() {
   rotaryEncoder.begin();
   rotaryEncoder.setup(readEncoderISR);
   rotaryEncoder.setAcceleration(0);
+
+  // UART link to Daisy Seed — board-level hardware, owned here rather
+  // than by any one module, since all three modules can now emit events.
+  Serial2.begin(nxyz_protocol::BAUD_RATE, SERIAL_8N1, -1, 17); // RX=-1, TX=GPIO17
+  event_bus::init(&Serial2);
+  ticks::init();
 
   gfx.init();
   gfx.setRotation(1);

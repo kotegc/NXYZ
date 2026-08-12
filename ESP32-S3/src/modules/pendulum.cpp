@@ -1,9 +1,20 @@
 #include "pendulum.h"
+#include "uart_protocol.h"
+#include "../event_bus.h"
+#include "../ticks.h"
 #include <math.h>
 #include <algorithm>
 
 using std::min;
 using std::max;
+
+// ── Event manifest ─────────────────────────────────────────
+static constexpr nxyz_protocol::EventDescriptor kPendulumEvents[] = {
+  { pendulum_events::ANGLE, nxyz_protocol::EventKind::Output,  "angle" },
+  { pendulum_events::PEAK,  nxyz_protocol::EventKind::Trigger, "peak" },
+};
+
+const nxyz_protocol::EventDescriptor* PendulumModule::events() const { return kPendulumEvents; }
 
 static void computeDerivatives(
     double a1, double a2, double v1, double v2,
@@ -55,6 +66,7 @@ void PendulumModule::init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) {
   _a2 = 0.8;
   _v1 = 0;
   _v2 = 0;
+  _prevV2Positive = (_v2 >= 0.0);
 
   _gfx->fillScreen(TFT_WHITE);
 
@@ -259,6 +271,27 @@ void PendulumModule::loop() {
   int oldX2 = _x2, oldY2 = _y2;
 
   computePositions();
+
+  // ── Event emission ──
+  {
+    uint32_t tick = ticks::now();
+
+    // Continuous "angle" output — bob-2 angle, normalized to one revolution.
+    float angleNorm = fmodf((float)_a2, 2.0f * (float)M_PI);
+    if (angleNorm < 0) angleNorm += 2.0f * (float)M_PI;
+    event_bus::emitOutputThrottled(nxyz_protocol::MODULE_PENDULUM, pendulum_events::ANGLE,
+                                    angleNorm / (2.0f * (float)M_PI), tick);
+
+    // "peak" trigger — fires when bob-2's angular velocity crosses zero
+    // (a local extremum of the swing).
+    static constexpr float PEAK_VELOCITY_NORM = 8.0f; // empirically-tuned normalization ceiling for |v2|, not derived
+    bool v2Positive = _v2 >= 0.0;
+    if (v2Positive != _prevV2Positive) {
+      float intensity = fminf((float)fabs(_v2) / PEAK_VELOCITY_NORM, 1.0f);
+      event_bus::emit(nxyz_protocol::MODULE_PENDULUM, pendulum_events::PEAK, intensity, 0.f, tick);
+    }
+    _prevV2Positive = v2Positive;
+  }
 
   // Render via sprite — no blink
   renderSprite(oldX1, oldY1, oldX2, oldY2,

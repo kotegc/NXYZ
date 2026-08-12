@@ -1,12 +1,26 @@
 #include "particles.h"
 #include "uart_protocol.h"
+#include "../event_bus.h"
+#include "../ticks.h"
 
-// ── Packet sender ─────────────────────────────────────────
-// Wire format lives in shared/uart_protocol.h — see nxyz_protocol::encodePacket.
-static void sendCollisionPacket(uint8_t bodyIndex, float speed, float normX, float normY, uint8_t collisionType, uint8_t numBodies) {
-    uint8_t packet[nxyz_protocol::PACKET_SIZE];
-    nxyz_protocol::encodePacket(packet, bodyIndex, speed, normX, normY, collisionType, numBodies);
-    Serial2.write(packet, nxyz_protocol::PACKET_SIZE);
+// ── Event manifest ────────────────────────────────────────
+static constexpr nxyz_protocol::EventDescriptor kParticleEvents[] = {
+  { particle_events::WALL_BOUNCE,    nxyz_protocol::EventKind::Trigger, "wall_bounce" },
+  { particle_events::BODY_COLLISION, nxyz_protocol::EventKind::Trigger, "body_collision" },
+};
+
+const nxyz_protocol::EventDescriptor* ParticleModule::events() const { return kParticleEvents; }
+
+namespace {
+  // 254 / 20 — preserves the old clampByte((int)(speed*20.f)) headroom
+  // exactly, so post-refactor amplitude/pitch response matches
+  // pre-refactor behavior.
+  constexpr float SPEED_NORM_SCALE = 12.7f;
+
+  void emitCollision(uint8_t eventId, float speed, float normX) {
+    float speedNorm = fminf(speed / SPEED_NORM_SCALE, 1.0f);
+    event_bus::emit(nxyz_protocol::MODULE_PARTICLES, eventId, speedNorm, normX, ticks::now());
+  }
 }
 
 // ── Init / Stop ───────────────────────────────────────────
@@ -32,8 +46,6 @@ void ParticleModule::init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) {
   _encoder->setAcceleration(0);
 
   _mutex = xSemaphoreCreateMutex();
-
-  Serial2.begin(nxyz_protocol::BAUD_RATE, SERIAL_8N1, -1, 17); // RX=-1, TX=GPIO17
 
   // Collision checks are O(n^2) in body count (up to ~100 bodies = up to
   // ~10,000 checks/frame), heavy enough to want a dedicated core so the
@@ -150,13 +162,13 @@ void ParticleModule::physicsTaskFn(void* param) {
       b.y += b.vy;
 
       if (b.x + RADIUS >= SCREEN_W) { b.x = SCREEN_W-RADIUS; b.vx = -fabsf(b.vx);
-          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0, self->_numBodies); }
+          emitCollision(particle_events::WALL_BOUNCE, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W); }
       if (b.x - RADIUS <= 0)        { b.x = RADIUS;           b.vx =  fabsf(b.vx);
-          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0, self->_numBodies); }
+          emitCollision(particle_events::WALL_BOUNCE, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W); }
       if (b.y + RADIUS >= SCREEN_H) { b.y = SCREEN_H-RADIUS;  b.vy = -fabsf(b.vy);
-          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0, self->_numBodies); }
+          emitCollision(particle_events::WALL_BOUNCE, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W); }
       if (b.y - RADIUS <= 0)        { b.y = RADIUS;            b.vy =  fabsf(b.vy);
-          sendCollisionPacket(i, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W, b.y / SCREEN_H, 0, self->_numBodies); }
+          emitCollision(particle_events::WALL_BOUNCE, sqrtf(b.vx*b.vx + b.vy*b.vy), b.x / SCREEN_W); }
           
       for (int j = i+1; j < MAX_BODIES; j++) {
         if (!self->_bodies[j].alive) continue;
@@ -186,7 +198,7 @@ void ParticleModule::physicsTaskFn(void* param) {
               b.vy                -= dot*ny;
               self->_bodies[j].vx += dot*nx;
               self->_bodies[j].vy += dot*ny;
-              sendCollisionPacket(i, fabsf(dot), b.x / SCREEN_W, b.y / SCREEN_H, 1, self->_numBodies);
+              emitCollision(particle_events::BODY_COLLISION, fabsf(dot), b.x / SCREEN_W);
           }
         }
       }

@@ -1,0 +1,163 @@
+<svg width="100%" viewBox="0 0 680 980" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>Rev0 devboard connection diagram v3</title>
+  <desc>Full system connection diagram showing USB-C power, Daisy Seed, ESP32-S3, TFT display, controls, three audio jacks with input protection, and inter-MCU UART link.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      text { font-family: sans-serif; fill: #1a1a1a; }
+      .th { font-size: 14px; font-weight: 500; }
+      .ts { font-size: 12px; font-weight: 400; }
+      .c-gray rect { fill: #F1EFE8; stroke: #5F5E5A; }
+      .c-gray text { fill: #444441; }
+      .c-purple rect { fill: #EEEDFE; stroke: #534AB7; }
+      .c-purple text { fill: #3C3489; }
+      .c-teal rect { fill: #E1F5EE; stroke: #0F6E56; }
+      .c-teal text { fill: #085041; }
+      .c-amber rect { fill: #FAEEDA; stroke: #854F0B; }
+      .c-amber text { fill: #633806; }
+      .c-blue rect { fill: #E6F1FB; stroke: #185FA5; }
+      .c-blue text { fill: #0C447C; }
+      .c-coral rect { fill: #FAECE7; stroke: #993C1D; }
+      .c-coral text { fill: #712B13; }
+      .c-red rect { fill: #FCEBEB; stroke: #A32D2D; }
+      .c-red text { fill: #791F1F; }
+    </style>
+  </defs>
+
+  <!-- USB-C Power -->
+  <g class="c-gray">
+    <rect x="220" y="20" width="240" height="56" rx="8" stroke-width="0.5"/>
+    <text class="th" x="340" y="42" text-anchor="middle" dominant-baseline="central">USB-C receptacle</text>
+    <text class="ts" x="340" y="60" text-anchor="middle" dominant-baseline="central">5.1kΩ CC1/CC2 · polyfuse · 5V rail</text>
+  </g>
+
+  <line x1="340" y1="76" x2="340" y2="106" stroke="#639922" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="ts" x="350" y="95" fill="#3B6D11">+5V</text>
+  <circle cx="340" cy="112" r="5" fill="#639922"/>
+
+  <path d="M335 112 L150 112 L150 188" fill="none" stroke="#639922" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="ts" x="230" y="106" text-anchor="middle" fill="#3B6D11">5V → VIN</text>
+
+  <path d="M345 112 L530 112 L530 188" fill="none" stroke="#639922" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="ts" x="452" y="106" text-anchor="middle" fill="#3B6D11">5V → VIN</text>
+
+  <!-- Daisy Seed -->
+  <g class="c-purple">
+    <rect x="50" y="188" width="200" height="184" rx="8" stroke-width="0.5"/>
+    <text class="th" x="150" y="210" text-anchor="middle" dominant-baseline="central">Daisy Seed</text>
+    <text class="ts" x="150" y="228" text-anchor="middle" dominant-baseline="central">Audio · UART RX/TX</text>
+    <text class="ts" x="68" y="252" dominant-baseline="central">GPIO 18 → Audio L out</text>
+    <text class="ts" x="68" y="270" dominant-baseline="central">GPIO 19 → Audio R out</text>
+    <text class="ts" x="68" y="288" dominant-baseline="central">GPIO 16 ← Audio L in</text>
+    <text class="ts" x="68" y="306" dominant-baseline="central">GPIO 17 ← Audio R in</text>
+    <text class="ts" x="68" y="324" dominant-baseline="central">GPIO 15 ← UART RX</text>
+    <text class="ts" x="68" y="342" dominant-baseline="central">GPIO 14 → UART TX</text>
+    <text class="ts" x="68" y="360" dominant-baseline="central">3.3V reg onboard</text>
+  </g>
+
+  <!-- ESP32-S3 -->
+  <g class="c-teal">
+    <rect x="430" y="188" width="210" height="224" rx="8" stroke-width="0.5"/>
+    <text class="th" x="535" y="210" text-anchor="middle" dominant-baseline="central">ESP32-S3</text>
+    <text class="ts" x="535" y="228" text-anchor="middle" dominant-baseline="central">UI · controls · display</text>
+    <text class="ts" x="448" y="252" dominant-baseline="central">GPIO 4/5/6 → Encoder CLK/DT/SW</text>
+    <text class="ts" x="448" y="270" dominant-baseline="central">GPIO 7 → Tactile switch</text>
+    <text class="ts" x="448" y="288" dominant-baseline="central">GPIO 8–13 → TFT SPI</text>
+    <text class="ts" x="448" y="306" dominant-baseline="central">GPIO 35–42 → Key matrix</text>
+    <text class="ts" x="448" y="324" dominant-baseline="central">GPIO 17 → UART TX</text>
+    <text class="ts" x="448" y="342" dominant-baseline="central">GPIO 18 ← UART RX</text>
+    <text class="ts" x="448" y="360" dominant-baseline="central">3.3V reg onboard</text>
+  </g>
+
+  <!-- UART inter-MCU -->
+  <path d="M430 334 L370 334 L370 306 L250 306" fill="none" stroke="#1D9E75" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <path d="M250 324 L310 324 L310 352 L430 352" fill="none" stroke="#1D9E75" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <text class="ts" x="340" y="318" text-anchor="middle" fill="#0F6E56">UART TX</text>
+  <text class="ts" x="340" y="358" text-anchor="middle" fill="#0F6E56">UART RX</text>
+
+  <!-- TFT Display -->
+  <g class="c-blue">
+    <rect x="430" y="452" width="210" height="56" rx="8" stroke-width="0.5"/>
+    <text class="th" x="535" y="474" text-anchor="middle" dominant-baseline="central">320×240 TFT display</text>
+    <text class="ts" x="535" y="492" text-anchor="middle" dominant-baseline="central">SPI · 3.3V · GND</text>
+  </g>
+  <line x1="535" y1="412" x2="535" y2="452" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Rotary encoder -->
+  <g class="c-coral">
+    <rect x="430" y="548" width="210" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="535" y="564" text-anchor="middle" dominant-baseline="central">Rotary encoder</text>
+    <text class="ts" x="535" y="582" text-anchor="middle" dominant-baseline="central">CLK/DT/SW · 3.3V · GND</text>
+  </g>
+  <line x1="535" y1="508" x2="535" y2="548" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Tactile switch -->
+  <g class="c-coral">
+    <rect x="430" y="632" width="210" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="535" y="648" text-anchor="middle" dominant-baseline="central">Tactile switch</text>
+    <text class="ts" x="535" y="666" text-anchor="middle" dominant-baseline="central">GPIO 7 · T2 → GND</text>
+  </g>
+  <line x1="535" y1="592" x2="535" y2="632" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 4x4 matrix -->
+  <g class="c-coral">
+    <rect x="430" y="716" width="210" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="535" y="732" text-anchor="middle" dominant-baseline="central">4×4 switch matrix</text>
+    <text class="ts" x="535" y="750" text-anchor="middle" dominant-baseline="central">R1–R4: GPIO 39–42 · C1–C4: 35–38</text>
+  </g>
+  <line x1="535" y1="676" x2="535" y2="716" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Audio Out -->
+  <g class="c-amber">
+    <rect x="50" y="452" width="200" height="56" rx="8" stroke-width="0.5"/>
+    <text class="th" x="150" y="474" text-anchor="middle" dominant-baseline="central">Out jack (TRS)</text>
+    <text class="ts" x="150" y="492" text-anchor="middle" dominant-baseline="central">Tip→GPIO18 · Ring→GPIO19</text>
+  </g>
+  <line x1="150" y1="372" x2="150" y2="452" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Monitor jack -->
+  <g class="c-amber">
+    <rect x="50" y="556" width="200" height="56" rx="8" stroke-width="0.5"/>
+    <text class="th" x="150" y="578" text-anchor="middle" dominant-baseline="central">Monitor jack (TRS)</text>
+    <text class="ts" x="150" y="596" text-anchor="middle" dominant-baseline="central">Passive tap · 2× 47Ω series</text>
+  </g>
+  <circle cx="150" cy="508" r="4" fill="#BA7517"/>
+  <line x1="150" y1="508" x2="150" y2="556" stroke="#BA7517" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="ts" x="162" y="535" fill="#633806">tap</text>
+
+  <!-- Input protection -->
+  <g class="c-red">
+    <rect x="50" y="660" width="200" height="56" rx="8" stroke-width="0.5"/>
+    <text class="th" x="150" y="682" text-anchor="middle" dominant-baseline="central">Input protection</text>
+    <text class="ts" x="150" y="700" text-anchor="middle" dominant-baseline="central">2× 10kΩ · clamp diodes</text>
+  </g>
+
+  <!-- In jack -->
+  <g class="c-amber">
+    <rect x="50" y="764" width="200" height="56" rx="8" stroke-width="0.5"/>
+    <text class="th" x="150" y="786" text-anchor="middle" dominant-baseline="central">In jack (TRS)</text>
+    <text class="ts" x="150" y="804" text-anchor="middle" dominant-baseline="central">Tip=L · Ring=R · line level</text>
+  </g>
+
+  <line x1="150" y1="764" x2="150" y2="716" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Protection → Daisy ADC: routed right side, clear of boxes -->
+  <path d="M250 688 L290 688 L290 297 L250 297" fill="none" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="ts" x="302" y="500" fill="#5F5E5A">→ ADC in</text>
+
+  <text class="ts" x="150" y="840" text-anchor="middle" fill="#5F5E5A">← line-level from external device</text>
+
+  <!-- Legend -->
+  <line x1="50" y1="900" x2="80" y2="900" stroke="#639922" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="ts" x="86" y="904">5V power</text>
+  <line x1="170" y1="900" x2="200" y2="900" stroke="#1D9E75" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <text class="ts" x="206" y="904">UART</text>
+  <line x1="270" y1="900" x2="300" y2="900" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="ts" x="306" y="904">signal / audio</text>
+  <line x1="420" y1="900" x2="450" y2="900" stroke="#BA7517" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="ts" x="456" y="904">passive tap</text>
+
+  <text class="ts" x="340" y="930" text-anchor="middle" fill="#5F5E5A">Common GND plane · USB-C GND → all modules</text>
+</svg>

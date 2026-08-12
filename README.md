@@ -56,6 +56,11 @@ actually fun to use rather than a gimmick. So far, yes to both.
 
 ## How it works
 
+<p align="center">
+  <img src="docs/images/hardware-connection-diagram.svg" width="65%" alt="Rev0 devboard connection diagram: USB-C power, Daisy Seed, ESP32-S3, TFT display, controls, and three protected audio jacks, linked by an inter-MCU UART" />
+</p>
+<p align="center"><em>Rev0 devboard connection diagram — power, both MCUs, display, controls, and audio I/O.</em></p>
+
 - **ESP32-S3** ([`ESP32-S3/`](ESP32-S3)) —
   drives the display (LovyanGFX) and rotary-encoder menu, runs the
   active physics module's simulation step each frame, and streams its
@@ -108,6 +113,22 @@ Roadmap, roughly:
 
 This is early — RP1 hasn't been fabricated yet, so read the SDK/DAW
 vision as the direction, not a promise of what's built today.
+
+## Industrial design
+
+The images below are concept work and a components check, not the current
+hardware — RP1's enclosure hasn't been fabricated yet.
+
+<p align="center">
+  <img src="docs/images/id-concept-renders.jpg" width="46%" alt="Industrial design concept renders of the handheld shell from several angles" />
+  <img src="docs/images/purchased-internals.webp" width="46%" alt="Purchased internals — display, joystick, and button caps — arranged in the device footprint" />
+</p>
+<p align="center"><em>Left: early concept renders exploring the handheld's form factor and control layout. Right: the actual purchased internals (display, joystick, buttons) arranged in RP1's real footprint.</em></p>
+
+<p align="center">
+  <img src="docs/images/ui-exploration-sketches.webp" width="100%" alt="Sheet of iterative handheld control-layout explorations using components already in the BOM" />
+</p>
+<p align="center"><em>Iterative control-layout exploration using components already in the BOM.</em></p>
 
 ## Repo layout
 

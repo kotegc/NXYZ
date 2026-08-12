@@ -6,12 +6,20 @@
 #define BOB_RADIUS     4
 #define ANCHOR_RADIUS  8
 
+namespace pendulum_events {
+  enum : uint8_t { ANGLE = 0, PEAK = 1, EVENT_COUNT };
+}
+
 class PendulumModule : public PhysicsModule {
 public:
   void        init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) override;
   void        stop() override;
   void        loop() override;
   const char* name() override { return "DOUBLE PENDULUM"; }
+
+  uint8_t                              moduleId() const override { return nxyz_protocol::MODULE_PENDULUM; }
+  const nxyz_protocol::EventDescriptor* events() const override;
+  uint8_t                              eventCount() const override { return pendulum_events::EVENT_COUNT; }
 
 private:
   LGFX*                 _gfx;
@@ -35,6 +43,7 @@ private:
   bool     _fpsDirty   = false;
   uint32_t _lastFPSVal = 0;
   long     _lastEncoderRaw = 0;
+  bool     _prevV2Positive = true;
 
   void computePositions();
   void drawAll();

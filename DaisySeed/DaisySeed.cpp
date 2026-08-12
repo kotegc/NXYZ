@@ -30,6 +30,54 @@ float   manualFreq = 440.f;
 uint8_t packetBuf[nxyz_protocol::PACKET_SIZE];
 uint8_t packetIdx = 0;
 
+// ── Event -> synth mapping table ───────────────────────────
+// Data-driven replacement for the old single hardcoded normX->freq,
+// speed->amp mapping: each row says "when this (moduleId, eventId) event
+// arrives, drive this synth target from this source, scaled into this
+// range." See 01_Docs/Architecture/event_protocol_overview.md.
+enum class SynthParam : uint8_t { NoteTrigger, NoteFreq, NoteAmp };
+enum class ValueSource : uint8_t { PacketValue, PacketAux, LatchedOutput };
+
+struct FloatRange { float lo, hi; };
+
+struct MappingEntry {
+    uint8_t     moduleId;
+    uint8_t     eventId;        // which incoming event this row reacts to
+    SynthParam  target;
+    FloatRange  range;          // scales the 0..1 source into this range (ignored for NoteTrigger)
+    ValueSource source;
+    uint8_t     sourceEventId;  // used only when source == LatchedOutput
+};
+
+static constexpr MappingEntry kMappingTable[] = {
+    // Particles: aux carries collision X-position (pitch); value carries
+    // normalized collision speed (amplitude). Reproduces pre-refactor
+    // behavior exactly (100-1000Hz, 0-0.5 amp).
+    { nxyz_protocol::MODULE_PARTICLES, 0 /*wall_bounce*/,    SynthParam::NoteTrigger, {0,0},          ValueSource::PacketValue,    0 },
+    { nxyz_protocol::MODULE_PARTICLES, 0 /*wall_bounce*/,    SynthParam::NoteFreq,    {100.f,1000.f}, ValueSource::PacketAux,      0 },
+    { nxyz_protocol::MODULE_PARTICLES, 0 /*wall_bounce*/,    SynthParam::NoteAmp,     {0.f,0.5f},     ValueSource::PacketValue,    0 },
+    { nxyz_protocol::MODULE_PARTICLES, 1 /*body_collision*/, SynthParam::NoteTrigger, {0,0},          ValueSource::PacketValue,    0 },
+    { nxyz_protocol::MODULE_PARTICLES, 1 /*body_collision*/, SynthParam::NoteFreq,    {100.f,1000.f}, ValueSource::PacketAux,      0 },
+    { nxyz_protocol::MODULE_PARTICLES, 1 /*body_collision*/, SynthParam::NoteAmp,     {0.f,0.5f},     ValueSource::PacketValue,    0 },
+
+    // Pendulum: continuous "angle" output (id 0) is latched and read as
+    // pitch by the "peak" trigger (id 1) — pendulum has no drone voice,
+    // so an Output alone can't drive audio yet.
+    { nxyz_protocol::MODULE_PENDULUM, 1 /*peak*/, SynthParam::NoteTrigger, {0,0},         ValueSource::PacketValue,   0 },
+    { nxyz_protocol::MODULE_PENDULUM, 1 /*peak*/, SynthParam::NoteFreq,    {200.f,800.f}, ValueSource::LatchedOutput, 0 /*angle*/ },
+    { nxyz_protocol::MODULE_PENDULUM, 1 /*peak*/, SynthParam::NoteAmp,     {0.15f,0.45f}, ValueSource::PacketValue,   0 },
+
+    // Chladni: same pattern — "mode_amplitude" (id 0) latched, read as
+    // pitch by "node_crossing" (id 1).
+    { nxyz_protocol::MODULE_CHLADNI, 1 /*node_crossing*/, SynthParam::NoteTrigger, {0,0},         ValueSource::PacketValue,   0 },
+    { nxyz_protocol::MODULE_CHLADNI, 1 /*node_crossing*/, SynthParam::NoteFreq,    {150.f,900.f}, ValueSource::LatchedOutput, 0 /*mode_amplitude*/ },
+    { nxyz_protocol::MODULE_CHLADNI, 1 /*node_crossing*/, SynthParam::NoteAmp,     {0.2f,0.4f},   ValueSource::PacketValue,   0 },
+};
+
+static constexpr uint8_t MAX_EVENTS_PER_MODULE = 4;
+static float    g_latchedOutput[nxyz_protocol::MODULE_COUNT][MAX_EVENTS_PER_MODULE] = {};
+static uint32_t g_lastEventTick = 0;
+
 // ── Voice allocator ───────────────────────────────────────
 int FindVoice()
 {
@@ -55,16 +103,43 @@ int FindVoice()
 }
 
 // ── Packet processor ──────────────────────────────────────
-// Decoding is nxyz_protocol::decodePacket — bodyIndex/normY/collisionType/
-// numBodies are parsed but unused for now, available for future mapping.
-void ProcessPacket(uint8_t* p)
+// Looks up every kMappingTable row matching this packet's (moduleId,
+// eventId) and applies each in turn — see the table above for what each
+// module's events actually drive.
+void ApplyPacket(const nxyz_protocol::EventPacket& pkt)
 {
-    nxyz_protocol::CollisionPacket pkt = nxyz_protocol::decodePacket(p);
+    // Every incoming packet updates the latch for its own (moduleId,
+    // eventId), regardless of kind — this is what lets a later trigger
+    // read a continuous output's most recent value (e.g. pendulum's
+    // "peak" reading the last "angle" sample for pitch).
+    g_latchedOutput[pkt.moduleId][pkt.eventId] = pkt.value;
+    g_lastEventTick = pkt.tick;
 
-    triggerFreq = 100.f + pkt.normX * 900.f; // maps normX to 100-1000Hz; range chosen by ear, not derived
-    triggerAmp  = pkt.speed * 0.5f;
+    bool  doTrigger = false;
+    float freq = triggerFreq, amp = triggerAmp;
 
-    trigger = true;
+    for (const auto& m : kMappingTable) {
+        if (m.moduleId != pkt.moduleId || m.eventId != pkt.eventId) continue;
+
+        float src = 0.f;
+        switch (m.source) {
+            case ValueSource::PacketValue:   src = pkt.value; break;
+            case ValueSource::PacketAux:     src = pkt.aux;   break;
+            case ValueSource::LatchedOutput: src = g_latchedOutput[pkt.moduleId][m.sourceEventId]; break;
+        }
+
+        switch (m.target) {
+            case SynthParam::NoteTrigger: doTrigger = true; break;
+            case SynthParam::NoteFreq:    freq = m.range.lo + src * (m.range.hi - m.range.lo); break;
+            case SynthParam::NoteAmp:     amp  = m.range.lo + src * (m.range.hi - m.range.lo); break;
+        }
+    }
+
+    if (doTrigger) {
+        triggerFreq = freq;
+        triggerAmp  = amp;
+        trigger     = true;
+    }
 }
 
 // ── Audio callback ────────────────────────────────────────
@@ -189,7 +264,7 @@ int main(void)
                 packetBuf[packetIdx++] = byte;
                 if(packetIdx == nxyz_protocol::PACKET_SIZE)
                 {
-                    ProcessPacket(packetBuf);
+                    ApplyPacket(nxyz_protocol::decodeEventPacket(packetBuf));
                     packetIdx = 0;
                 }
             }
