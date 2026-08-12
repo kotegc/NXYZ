@@ -19,6 +19,6 @@ make LIBDAISY_DIR=/path/to/DaisyExamples/libDaisy DAISYSP_DIR=/path/to/DaisyExam
 
 ## Protocol
 
-Listens for 7-byte packets at 31250 baud (MIDI standard rate) on UART1
-(RX on `D14`). See the root [README](../../README.md#how-it-works) for the
-packet framing.
+Wire format is defined once in [`../shared/uart_protocol.h`](../shared/uart_protocol.h)
+and included by both firmware projects — see the root
+[README](../README.md#how-it-works) for the packet framing.

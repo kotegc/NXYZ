@@ -1,20 +1,12 @@
 #include "particles.h"
+#include "uart_protocol.h"
 
 // ── Packet sender ─────────────────────────────────────────
-// Every payload byte is clamped to 254 (never 255/0xFF) so no byte in a
-// packet body can be mistaken for the 0xFF sync byte that marks the start
-// of a new packet — that's what lets the DaisySeed-side parser resync
-// cleanly if it ever misses a byte.
+// Wire format lives in shared/uart_protocol.h — see nxyz_protocol::encodePacket.
 static void sendCollisionPacket(uint8_t bodyIndex, float speed, float normX, float normY, uint8_t collisionType, uint8_t numBodies) {
-    uint8_t packet[7];
-    packet[0] = 0xFF;
-    packet[1] = bodyIndex;
-    packet[2] = (uint8_t)min((int)(speed * 20.f), 254);
-    packet[3] = (uint8_t)min((int)(normX * 255.f), 254);
-    packet[4] = (uint8_t)min((int)(normY * 255.f), 254);
-    packet[5] = collisionType;
-    packet[6] = (uint8_t)min((int)numBodies, 254);
-    Serial2.write(packet, 7);
+    uint8_t packet[nxyz_protocol::PACKET_SIZE];
+    nxyz_protocol::encodePacket(packet, bodyIndex, speed, normX, normY, collisionType, numBodies);
+    Serial2.write(packet, nxyz_protocol::PACKET_SIZE);
 }
 
 // ── Init / Stop ───────────────────────────────────────────
@@ -41,7 +33,7 @@ void ParticleModule::init(LGFX* gfx, AiEsp32RotaryEncoder* encoder) {
 
   _mutex = xSemaphoreCreateMutex();
 
-  Serial2.begin(31250, SERIAL_8N1, -1, 17); // RX=-1, TX=GPIO17; 31250 = MIDI standard baud rate
+  Serial2.begin(nxyz_protocol::BAUD_RATE, SERIAL_8N1, -1, 17); // RX=-1, TX=GPIO17
 
   // Collision checks are O(n^2) in body count (up to ~100 bodies = up to
   // ~10,000 checks/frame), heavy enough to want a dedicated core so the

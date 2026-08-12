@@ -56,14 +56,14 @@ actually fun to use rather than a gimmick. So far, yes to both.
 
 ## How it works
 
-- **ESP32-S3** ([`052026_ESP32-S3_Sketch_001_GK/`](052026_Sketch_001/ESP32-S3/052026_ESP32-S3_Sketch_001_GK)) —
+- **ESP32-S3** ([`ESP32-S3/`](ESP32-S3)) —
   drives the display (LovyanGFX) and rotary-encoder menu, runs the
   active physics module's simulation step each frame, and streams its
   state over UART.
-- **Daisy Seed** ([`DaisySeed/`](052026_Sketch_001/DaisySeed)) —
+- **Daisy Seed** ([`DaisySeed/`](DaisySeed)) —
   receives UART packets and maps simulation state onto oscillator
   parameters in real time.
-- **Modules** ([`src/modules/`](052026_Sketch_001/ESP32-S3/052026_ESP32-S3_Sketch_001_GK/src/modules)) —
+- **Modules** ([`src/modules/`](ESP32-S3/src/modules)) —
   each interaction module implements a common `PhysicsModule`
   interface (`init`/`stop`/`loop`/`name`), so new ones drop in without
   touching the menu or UART plumbing. Three exist today, all physics
@@ -76,9 +76,12 @@ actually fun to use rather than a gimmick. So far, yes to both.
   loop. Same interface, different concurrency underneath: a
   resource-proportional choice, not an inconsistency (heavier
   workload gets the dedicated core; the other two don't need one).
-- **UART protocol** — 7-byte packets at 31250 baud (the MIDI standard
-  rate). Payload bytes are capped at 254 so nothing in a packet body
-  can be mistaken for the `0xFF` sync byte marking a new packet.
+- **UART protocol** ([`shared/uart_protocol.h`](shared/uart_protocol.h)) —
+  7-byte packets at 31250 baud (the MIDI standard rate), defined once
+  and included by both the ESP32-S3 and Daisy Seed builds so the wire
+  format can't drift out of sync between sender and receiver. Payload
+  bytes are capped at 254 so nothing in a packet body can be mistaken
+  for the `0xFF` sync byte marking a new packet.
 
 ## Vision
 
@@ -113,9 +116,9 @@ CAD), industrial design (renders), and project docs live in a local,
 non-public project structure and aren't part of this repo.
 
 ```
-052026_Sketch_001/
-├── ESP32-S3/052026_ESP32-S3_Sketch_001_GK/   PlatformIO project — display, menu, physics modules
-└── DaisySeed/                                  Audio firmware — oscillator driven by UART packets
+ESP32-S3/     PlatformIO project — display, menu, interaction modules
+DaisySeed/    Audio firmware — oscillator driven by UART packets
+shared/       UART wire-protocol definition, used by both sides
 ```
 
 ## Building
@@ -123,7 +126,7 @@ non-public project structure and aren't part of this repo.
 The ESP32-S3 side is a standard [PlatformIO](https://platformio.org/)
 project:
 ```
-cd 052026_Sketch_001/ESP32-S3/052026_ESP32-S3_Sketch_001_GK
+cd ESP32-S3
 pio run
 ```
 PlatformIO auto-detects the board's serial port. If you have multiple
@@ -134,7 +137,7 @@ boards attached and need to pin a specific port, create a local
 The Daisy Seed side builds with the
 [Daisy toolchain](https://github.com/electro-smith/DaisyExamples) via
 the included `Makefile` — see
-[`DaisySeed/README.md`](052026_Sketch_001/DaisySeed/README.md) for the
+[`DaisySeed/README.md`](DaisySeed/README.md) for the
 path override if your checkout isn't at the default location.
 
 ## License

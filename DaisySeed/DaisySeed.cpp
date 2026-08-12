@@ -1,5 +1,6 @@
 #include "daisy_seed.h"
 #include "daisysp.h"
+#include "uart_protocol.h"
 
 using namespace daisy;
 using namespace daisysp;
@@ -26,7 +27,7 @@ float   triggerAmp  = 0.5f;
 float   manualFreq = 440.f;
 
 // Packet parser
-uint8_t packetBuf[7]; // packets are 7 bytes (see ProcessPacket) — was [6], off-by-one overflow
+uint8_t packetBuf[nxyz_protocol::PACKET_SIZE];
 uint8_t packetIdx = 0;
 
 // ── Voice allocator ───────────────────────────────────────
@@ -54,24 +55,14 @@ int FindVoice()
 }
 
 // ── Packet processor ──────────────────────────────────────
+// Decoding is nxyz_protocol::decodePacket — bodyIndex/normY/collisionType/
+// numBodies are parsed but unused for now, available for future mapping.
 void ProcessPacket(uint8_t* p)
 {
-    uint8_t bodyIndex     = p[1];
-    float   speed         = p[2] / 254.0f;
-    float   normX         = p[3] / 254.0f;
-    float   normY         = p[4] / 254.0f;
-    uint8_t collisionType = p[5];
-    uint8_t numBodies     = p[6];
+    nxyz_protocol::CollisionPacket pkt = nxyz_protocol::decodePacket(p);
 
-    // Currently mapped
-    triggerFreq = 100.f + normX * 900.f; // maps normX to 100-1000Hz; range chosen by ear, not derived
-    triggerAmp  = speed * 0.5f;
-
-    // Parsed but unused for now — available for future mapping
-    (void)bodyIndex;
-    (void)normY;
-    (void)collisionType;
-    (void)numBodies;
+    triggerFreq = 100.f + pkt.normX * 900.f; // maps normX to 100-1000Hz; range chosen by ear, not derived
+    triggerAmp  = pkt.speed * 0.5f;
 
     trigger = true;
 }
@@ -134,7 +125,7 @@ int main(void)
     UartHandler uart;
     UartHandler::Config uart_conf;
     uart_conf.periph        = UartHandler::Config::Peripheral::USART_1;
-    uart_conf.baudrate      = 31250; // MIDI standard baud rate — matches Serial2 on the ESP32-S3 side
+    uart_conf.baudrate      = nxyz_protocol::BAUD_RATE;
     uart_conf.stopbits      = UartHandler::Config::StopBits::BITS_1;
     uart_conf.parity        = UartHandler::Config::Parity::NONE;
     uart_conf.mode          = UartHandler::Config::Mode::RX;
@@ -188,15 +179,15 @@ int main(void)
         uint8_t byte;
         while(uart.PollReceive(&byte, 1, 0) == 0)
         {
-            if(byte == 0xFF)
+            if(byte == nxyz_protocol::SYNC_BYTE)
             {
-                packetBuf[0] = 0xFF;
+                packetBuf[0] = nxyz_protocol::SYNC_BYTE;
                 packetIdx    = 1;
             }
-            else if(packetIdx > 0 && packetIdx < 7)
+            else if(packetIdx > 0 && packetIdx < nxyz_protocol::PACKET_SIZE)
             {
                 packetBuf[packetIdx++] = byte;
-                if(packetIdx == 7)
+                if(packetIdx == nxyz_protocol::PACKET_SIZE)
                 {
                     ProcessPacket(packetBuf);
                     packetIdx = 0;
